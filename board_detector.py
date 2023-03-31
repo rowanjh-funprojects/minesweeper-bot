@@ -1,8 +1,10 @@
 import numpy as np
 import cv2
+from PIL import Image
+from minesweeper import MineSweeperGame
 
 # Find the minesweeper game squares
-def find_game(screen):
+def find_game(screen, showVision=False):
     """
     Find the minesweeper game squares from a screenshot.
 
@@ -29,6 +31,9 @@ def find_game(screen):
             squares.append((x,y,w,h))
     
     grid = extract_grid(squares)
+    
+    if showVision:
+        Image.fromarray(edges).show()
 
     if grid:
         return grid
@@ -66,8 +71,8 @@ def extract_grid(squares):
         return None
     
     ### Check if the squares form a single complete grid
-    valsX = np.unique([x for (x,y,w,h) in squares])
     valsY = np.unique([y for (x,y,w,h) in squares])
+    valsX = np.unique([x for (x,y,w,h) in squares])
 
     # Check if x values are evenly spaced
     if not np.allclose(np.diff(valsX), valsX[1] - valsX[0]):
@@ -99,7 +104,67 @@ def extract_grid(squares):
     # If all checks pass, return the grid
     return squares
 
+
+def update_game(game: MineSweeperGame):
+    """ 
+    Check each grid square in the minesweeper game window. 
+    First check if the window seems to be open and in the correct position.
+    Then check each unknown cell for updates. 
+
+    """
+    # Check if the window seems to be in the same place, somehow.
+    # TODO
+
+    # Check all previously unknown cells for changes.
+    for i, row in enumerate(game.board):
+        for j, cell in enumerate(row):
+            if np.isnan(cell):
+                # Check the cell for changes
+                game.update_cell(i,j,read_cell(cell))
+    return game
+                
+
+def read_cell(cell):
+    """
+    Get the value of a single minesweeper cell: e.g. unknown, 0,1,2,3,4,5, mine
+
+
+    input: an image cropped from the screenshot 
+    output: the cell value:
+        NaN = unknown
+        -1 = flag?
+        0-8 = number of mines adjacent to cell
+
+    Possible algorithm: 
+    if central pixels in square are all uniform grey. 
+        if square has a bevel: unknown
+        if square has no bevel: zero
+    else if central pixels are not uniform:
+        if mine, game over
+        if not mine, check what the digit is with CNN
+
+    """
+    cell_center = cell[3:-3,3:-3]
     
+    # Check if the cell is uniform grey
+    if np.allclose(cell_center, cell_center[0,0]):
+        # Check if the cell has a bevel
+        if np.allclose(cell[1:-1,1:-1], cell_center[0,0]):
+            # No bevel, cell is zero
+            return 0
+        else:
+            # Bevel, cell is unknown
+            return np.nan
+    else:
+        # Cell is not uniform grey, check if it is a mine
+        # TODO
+
+        # If cell is not a mine, check what digit it is with CNN
+        # TODO
+
+
+
+
 
     
     
