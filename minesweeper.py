@@ -20,6 +20,18 @@ class MineSweeperGame():
         self.cell_height = cell_height
         self.cell_width = cell_width
     
+    @classmethod
+    def from_grid(cls, grid):
+        xvals = np.unique([x for (x,y,w,h) in grid])
+        yvals = np.unique([y for (x,y,w,h) in grid])
+        r = len(xvals)
+        c = len(yvals)
+        w = grid[0][2]
+        h = grid[0][3]
+        xmin = min(xvals)
+        ymin = min(yvals)
+        return cls(r,c,w,h,xmin,ymin)
+    
     def __str__(self):
         return ("Minesweeper Board\n" + 
                 f'Window location:{self.get_game_bbox()}\n' + 

@@ -1,4 +1,6 @@
 import random
+import mouse
+import time
 
 class Sentence():
     """
@@ -72,7 +74,10 @@ class playAgent():
 
     """
 
-    def __init__(self):
+    def __init__(self, game):
+        # Game window info
+        self.game = game
+
         # Keep track of which cells have been clicked on
         self.moves_made = set()
 
@@ -84,11 +89,6 @@ class playAgent():
         # List of sentences about the game known to be true
         self.knowledge = []
     
-    def init_new_game(self, height, width):
-        # Set initial height and width
-        self.height = height
-        self.width = width
-
     def add_knowledge(self, cell, count):
         """
         Called when the Minesweeper board tells us, for a given
@@ -224,12 +224,18 @@ class playAgent():
         self.revise_knowledge()
 
 
-    def make_move(self):
+    def plan_move(self):
         """
         Decide whether to make a safe move or a random move
         """
+        # If there are no safe moves, make a random move
+        if len(self.safes) == 0:
+            return self.plan_random_move()
+        # If there are safe moves, make one
+        else:
+            return self.plan_safe_move()
 
-    def make_safe_move(self):
+    def plan_safe_move(self):
         """
         Returns a safe cell to choose on the Minesweeper board.
         The move must be known to be safe, and not already a move
@@ -247,7 +253,7 @@ class playAgent():
         else:
             return None
 
-    def make_random_move(self):
+    def plan_random_move(self):
         """
         Returns a move to make on the Minesweeper board.
         Should choose randomly among cells that:
@@ -263,13 +269,32 @@ class playAgent():
         else:
             return random.choice(random_choices)
 
+    def execute_move(self, move, duration = 0.1):
+        # convert movement to pixel coordinates
+        (x,y) = self.cell_to_pixel(move)
+
+        # move mouse to cell and click
+        mouse.move(x,y,duration = duration)
+        mouse.press()
+        time.sleep(duration+0.1)
+        mouse.release()
+
+
+    def cell_to_pixel(self, cell):
+        """
+        Converts a cell (row, col) to pixel coordinates (x, y)
+        """
+        x = self.game.xmin + self.game.cell_width * cell[0] + self.game.cell_width/2
+        y = self.game.ymin + self.game.cell_height * cell[1] + self.game.cell_height/2
+        return (x,y)
+        
     def get_unplayed_squares(self):
         """
         Returns a list of tuples (row,col) representing cells that have not yet been played
         """
         cells = []
-        for i in range(self.height):
-            for j in range(self.width):
+        for i in range(self.game.height):
+            for j in range(self.game.width):
                 if (i,j) not in self.moves_made:
                     cells.append((i,j))
         return cells
@@ -284,7 +309,7 @@ class playAgent():
                 thisi = cell[0]-1 + i
                 thisj = cell[1]-1 + j
                 # Only accept values within the board
-                if thisi in range(self.height) and thisj in range(self.width):
+                if thisi in range(self.game.height) and thisj in range(self.game.width):
                     # Only consider unplayed cells.
                     if (thisi, thisj) not in self.moves_made:
                         neighbours.append((thisi,thisj))

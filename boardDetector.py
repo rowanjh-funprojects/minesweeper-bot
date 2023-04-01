@@ -33,7 +33,13 @@ def find_game(screen, showVision=False):
     grid = extract_grid(squares)
     
     if showVision:
-        Image.fromarray(edges).show()
+        # Draw squares on the screen
+        if grid:
+            for (x,y,w,h) in grid:
+                cv2.rectangle(screen,(x,y),(x+w,y+h),(0,255,0),3)
+            Image.fromarray(screen).show()
+        else:
+            Image.fromarray(edges).show()
 
     if grid:
         return grid
@@ -156,6 +162,7 @@ def read_cell(cell):
             # Bevel, cell is unknown
             return np.nan
     else:
+        return None
         # Cell is not uniform grey, check if it is a mine
         # TODO
 
