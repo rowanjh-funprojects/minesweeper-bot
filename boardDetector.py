@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from PIL import Image
+from PIL import Image, ImageGrab
 from minesweeper import MineSweeperGame
 
 # Find the minesweeper game squares
@@ -35,7 +35,7 @@ def find_game(screen, showVision=False):
     
     if showVision:
         # Draw squares on the screen
-        if grid:
+        if grid is not None:
             for (x,y,w,h) in grid:
                 cv2.rectangle(screen,(x,y),(x+w,y+h),(0,255,0),3)
             Image.fromarray(screen).show()
@@ -67,8 +67,12 @@ def extract_grid(squares):
     valsY, countY = np.unique(squares[:,1], return_counts=True)
     
     # Remove any outlier squares that do not align with at least 5 other squares
-    valsX = valsX[countX >5]
-    valsY = valsY[countY >5]
+    validX = valsX[countX > 5]
+    mask = np.isin(squares[:, 0], validX)
+    squares = squares[mask, :]
+    validY = valsY[countY > 5]
+    mask = np.isin(squares[:, 1], validY)
+    squares = squares[mask, :]
     
     ### Check if enough squares were found to make a grid
     if squares.shape[0] < 50:
@@ -110,37 +114,40 @@ def extract_grid(squares):
     return squares
 
 
-def update_game(game: MineSweeperGame):
+def check_cells(game: MineSweeperGame, cells = None):
     """ 
-    Check each grid square in the minesweeper game window. 
-    First check if the window seems to be open and in the correct position.
-    Then check each unknown cell for updates. 
-
+    Check a set of cells for changes. If no cells are specified, check all.
+    Assumes the game window has not moved.
     """
-    # Check if the window seems to be in the same place, somehow.
-    # TODO
-
-    # Check all previously unknown cells for changes.
-    for i, row in enumerate(game.board):
-        for j, cell in enumerate(row):
-            if np.isnan(cell):
-                # Check the cell for changes
-                game.update_cell(i,j,read_cell(cell))
-    return game
+    # If a list of cells is not provided, iterate over all cells. 
+    if cells is None:
+        cells = [(r,c) for r in range(game.height) for c in range(game.width)]
+    
+    # Take a screenshot
+    screen = ImageGrab.grab()
+    # If the value of a cell is unknown, check it
+    for cell in cells:
+        if np.isnan(game[cell]).any():
+            # Extract the right part of the screenshot 
+            contents = screen.crop(game.locate_cell(cell))
+            # Check the cell for changes
+            val = parse_cell(game, contents)
+            game.update_cell(cell, val)
                 
 
-def read_cell(cell):
+def parse_cell(game, cell_contents):
     """
     Get the value of a single minesweeper cell: e.g. unknown, 0,1,2,3,4,5, mine
 
-
-    input: an image cropped from the screenshot 
+    input: a cell from the minesweeper game
     output: the cell value:
         NaN = unknown
         -1 = flag?
         0-8 = number of mines adjacent to cell
 
     Possible algorithm: 
+    Find screen location of cell
+    Clip screen at that location
     if central pixels in square are all uniform grey. 
         if square has a bevel: unknown
         if square has no bevel: zero
@@ -149,28 +156,85 @@ def read_cell(cell):
         if not mine, check what the digit is with CNN
 
     """
-    cell_center = cell[3:-3,3:-3]
-    
-    # Check if the cell is uniform grey
-    if np.allclose(cell_center, cell_center[0,0]):
+    cell_center = cell_contents.crop((1,1,game.cell_width-3,game.cell_height-3))
+    cell_center = np.array(cell_center)
+
+    # Check if the cell is uniform grey (mouse pointer isn't in the screenshot)
+    if len(np.unique(cell_center)) == 1:
         # Check if the cell has a bevel
-        if np.allclose(cell[1:-1,1:-1], cell_center[0,0]):
+        if len(np.unique(cell_contents)) == 2:
             # No bevel, cell is zero
             return 0
         else:
-            # Bevel, cell is unknown
+            # Bevel, cell is unknown/unclicked
             return np.nan
     else:
-        return None
-        # Cell is not uniform grey, check if it is a mine
+        # Cell is not uniform grey, check if cell is a digit 
+        digit = read_digit(cell_center)
+        if digit:
+            return digit
+
+        # If any cell has a pitch black pixel and a red pixel, assume it is a mine
+        if col_in_img([0,0,0], cell_center):
+            if col_in_img([255,0,0], cell_center):
+                # Cell is a mine
+                return -1
+
+    # Could not read cell
+    return np.nan
+
+        # If cell is not a mine, it must be a digit. Use CNN to find digit
         # TODO
 
-        # If cell is not a mine, check what digit it is with CNN
-        # TODO
 
+def read_digit(img):
+    """
+    This version uses simple heuristics to determine what the digit is.
+    Ultimately this will be implemented with a CNN.
 
+    Input: a 16x16 image of a digit
+    Output: the digit
+    """
+    # 1 = [0,0,255]
+    # 2 = [0, 128, 0]
+    # 3 = [255,0,0]
+    # 4 = [0,0,128]
+    # 5 = [128,0,0]
+    # 6 = [0,128,128]
+    # 7 = [0,0,0]
+    # 8 = [128,128,128] # unsupported
 
+    img = np.array(img)
 
+    # Check if any pixels are blue
+    if col_in_img(img, [0,0,255]):
+        return 1
+    # Check if any pixels are green
+    if col_in_img(img, [0,128,0]):
+        return 2
+    # Check if any pixels are red
+    if col_in_img(img, [255,0,0]):
+        return 3
+    # Check if any pixels are dark blue
+    if col_in_img(img, [0,0,128]):
+        return 4
+    # Check if any pixels are dark red
+    if col_in_img(img, [128,0,0]):
+        return 5
+    # Check if any pixels are teal
+    if col_in_img(img, [0,128,128]):
+        return 6
+    
+    
+def col_in_img(colour, img):
+    """
+    Check if an image contains any pixel with a specific colour
+
+    Input:
+        colour: a list of 3 integers representing the colour to check for
+        img: a numpy array representing the image to check
+    """
+    return (img == np.array(colour)).all(axis=2).any()
 
     
     

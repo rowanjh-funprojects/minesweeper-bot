@@ -2,67 +2,6 @@ import random
 import mouse
 import time
 
-class Sentence():
-    """
-    Logical statement about a Minesweeper game
-    A sentence consists of a set of board cells,
-    and a count of the number of those cells which are mines.
-    """
-
-    def __init__(self, cells, count):
-        self.cells = set(cells)
-        self.count = count
-        self.mines = set()
-        self.safes = set()
-
-    def __eq__(self, other):
-        return self.cells == other.cells and self.count == other.count
-
-    def __str__(self):
-        return f"{self.cells} = {self.count}"
-
-    def known_mines(self):
-        """
-        Returns the set of all cells in self.cells known to be mines.
-        """
-        # Self
-        return self.mines
-
-    def known_safes(self):
-        """
-        Returns the set of all cells in self.cells known to be safe.
-        """
-        return self.safes
-
-    def mark_mine(self, cell):
-        """
-        Updates internal knowledge representation given the fact that
-        a cell is known to be a mine.
-        """
-        if cell in self.cells:
-            self.mines.add(cell)
-
-    def mark_safe(self, cell):
-        """
-        Updates internal knowledge representation given the fact that
-        a cell is known to be safe.
-        """
-        if cell in self.cells:
-            self.safes.add(cell)
-
-    def purge(self):
-        """
-        Purse marked mines and safes from a statement
-        """
-        purge_list = []
-        for c in self.cells:
-            if c in self.safes:
-                purge_list.append(c)
-            elif c in self.mines:
-                purge_list.append(c)
-                self.count -= 1
-        self.cells.difference_update(purge_list)
-
 
 class playAgent():
     """
@@ -80,6 +19,7 @@ class playAgent():
 
         # Keep track of which cells have been clicked on
         self.moves_made = set()
+        self.last_move = (None, None)
 
         # Keep track of cells known to be safe or mines
         self.mines = set()
@@ -272,6 +212,7 @@ class playAgent():
     def execute_move(self, move, duration = 0.1):
         # convert movement to pixel coordinates
         (x,y) = self.cell_to_pixel(move)
+        self.last_move = move
 
         # move mouse to cell and click
         mouse.move(x,y,duration = duration)
@@ -313,3 +254,65 @@ class playAgent():
                         neighbours.append((thisi,thisj))
         return neighbours
     
+
+class Sentence():
+    """
+    Logical statement about a Minesweeper game
+    A sentence consists of a set of board cells,
+    and a count of the number of those cells which are mines.
+    """
+
+    def __init__(self, cells, count):
+        self.cells = set(cells)
+        self.count = count
+        self.mines = set()
+        self.safes = set()
+
+    def __eq__(self, other):
+        return self.cells == other.cells and self.count == other.count
+
+    def __str__(self):
+        return f"{self.cells} = {self.count}"
+
+    def known_mines(self):
+        """
+        Returns the set of all cells in self.cells known to be mines.
+        """
+        # Self
+        return self.mines
+
+    def known_safes(self):
+        """
+        Returns the set of all cells in self.cells known to be safe.
+        """
+        return self.safes
+
+    def mark_mine(self, cell):
+        """
+        Updates internal knowledge representation given the fact that
+        a cell is known to be a mine.
+        """
+        if cell in self.cells:
+            self.mines.add(cell)
+
+    def mark_safe(self, cell):
+        """
+        Updates internal knowledge representation given the fact that
+        a cell is known to be safe.
+        """
+        if cell in self.cells:
+            self.safes.add(cell)
+
+    def purge(self):
+        """
+        Purse marked mines and safes from a statement
+        """
+        purge_list = []
+        for c in self.cells:
+            if c in self.safes:
+                purge_list.append(c)
+            elif c in self.mines:
+                purge_list.append(c)
+                self.count -= 1
+        self.cells.difference_update(purge_list)
+

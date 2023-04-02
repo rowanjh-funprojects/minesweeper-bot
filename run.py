@@ -2,7 +2,7 @@ import numpy as np
 from PIL import ImageGrab
 from playAgent import playAgent
 
-from boardDetector import find_game, update_game
+from boardDetector import find_game, check_cells
 from minesweeper import MineSweeperGame
 
 ### Find New Game Window
@@ -23,17 +23,6 @@ ai = playAgent(game)
 move = ai.plan_move()
 ai.execute_move(move)
 
-
-# Check all unknown cells for changes
-# game = update_game(game)
-
-
-
-
-
-
-# Mouse control
-
-# AI brain
+game = check_cells(game)
 
 # Messagebox/UI
