@@ -29,7 +29,8 @@ def find_game(screen, showVision=False):
         a = cv2.contourArea(c)
         if h == 14 and w == 14 and a > 160 and a < 175 :
             squares.append((x,y,w,h))
-    
+    squares = np.array(squares)
+
     grid = extract_grid(squares)
     
     if showVision:
@@ -41,7 +42,7 @@ def find_game(screen, showVision=False):
         else:
             Image.fromarray(edges).show()
 
-    if grid:
+    if grid is not None:
         return grid
     else:
         print("Failed to find the game")
@@ -56,37 +57,35 @@ def extract_grid(squares):
     Screening steps include removing outlier squares and checking that enough
     squares were found. 
     """
+    if len(squares) == 0:
+        print("Failed: no squares input to grid extractor")
+        return None
+    
     ### Remove outliers (squares that aren't aligned with other squares)
     # Get frequency of x and y coordinates of all squares
-    valsX, countX = np.unique([x for (x,y,w,h) in squares], return_counts=True)
-    valsY, countY = np.unique([y for (x,y,w,h) in squares], return_counts=True)
-
-    # Find outlier squares that do not align with at least 5 other squares
-    x_outliers = set([valsX[i] for i, c in enumerate(countX) if c < 5])
-    y_outliers = set([valsY[i] for i, c in enumerate(countY) if c < 5])
-
-    # Remove any outlier points
-    if x_outliers or y_outliers:
-        squares = [
-            s for s in squares 
-            if s[0] not in x_outliers and s[1] not in y_outliers]
+    valsX, countX = np.unique(squares[:,0], return_counts=True)
+    valsY, countY = np.unique(squares[:,1], return_counts=True)
+    
+    # Remove any outlier squares that do not align with at least 5 other squares
+    valsX = valsX[countX >5]
+    valsY = valsY[countY >5]
     
     ### Check if enough squares were found to make a grid
-    if len(squares) < 50:
+    if squares.shape[0] < 50:
         print("Failed: not enough squares found")
         return None
     
     ### Check if the squares form a single complete grid
-    valsY = np.unique([y for (x,y,w,h) in squares])
-    valsX = np.unique([x for (x,y,w,h) in squares])
+    valsX = np.unique(squares[:,0])
+    valsY = np.unique(squares[:,1])
 
     # Check if x values are evenly spaced
-    if not np.allclose(np.diff(valsX), valsX[1] - valsX[0]):
+    if not all(np.diff(valsX) == np.diff(valsX)[0]):
         print("Failed: x values are not evenly spaced")
         return None
     
     # Check if y values are evenly spaced
-    if not np.allclose(np.diff(valsY), valsY[1] - valsY[0]):
+    if not all(np.diff(valsY) == np.diff(valsY)[0]):
         print("Failed: y values are not evenly spaced")
         return None
     

@@ -22,15 +22,17 @@ class MineSweeperGame():
     
     @classmethod
     def from_grid(cls, grid):
-        xvals = np.unique([x for (x,y,w,h) in grid])
-        yvals = np.unique([y for (x,y,w,h) in grid])
-        r = len(xvals)
-        c = len(yvals)
-        w = grid[0][2]
-        h = grid[0][3]
+        xvals = np.unique(grid[:,0])
+        yvals = np.unique(grid[:,1])
+        nrows = len(xvals)
+        ncols = len(yvals)
         xmin = min(xvals)
         ymin = min(yvals)
-        return cls(r,c,w,h,xmin,ymin)
+        xmax = max(xvals)
+        ymax = max(yvals)
+        cell_width = (xmax-xmin) / (ncols-1)
+        cell_height = (ymax-ymin) / (nrows-1)
+        return cls(nrows,ncols,cell_width,cell_height,xmin,ymin)
     
     def __str__(self):
         return ("Minesweeper Board\n" + 

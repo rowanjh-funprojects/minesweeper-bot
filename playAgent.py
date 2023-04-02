@@ -275,10 +275,8 @@ class playAgent():
 
         # move mouse to cell and click
         mouse.move(x,y,duration = duration)
-        mouse.press()
-        time.sleep(duration+0.1)
-        mouse.release()
-
+        time.sleep(0.1)
+        mouse.click()
 
     def cell_to_pixel(self, cell):
         """

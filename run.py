@@ -25,7 +25,7 @@ ai.execute_move(move)
 
 
 # Check all unknown cells for changes
-game = update_game(game)
+# game = update_game(game)
 
 
 
