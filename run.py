@@ -1,28 +1,16 @@
-import numpy as np
-from PIL import ImageGrab
 from playAgent import playAgent
 
-from boardDetector import find_game, check_cells
-from minesweeper import MineSweeperGame
+### Create the AI 
+ai = playAgent()
 
-### Find New Game Window
-# Take a screenshot
-screengrab = np.array(ImageGrab.grab()) # for the full screen
-# Find a minesweeper game grid
-grid = find_game(screengrab, showVision=False)
+### Find game window with computer vision
+# Find game grid
+ai.find_game_grid() # ai.game_grid
 
-# Create a representation of the minesweeper game window
-game = MineSweeperGame.from_grid(grid)
+# Initialize game
+ai.initialize_game_grid() # ai.game
 
-### Update Game
-
-### Get AI agent to make move
-ai = playAgent(game)
-
-# Make initial move
-move = ai.plan_move()
-ai.execute_move(move)
-
-game = check_cells(game)
+# Play the game
+ai.play()
 
 # Messagebox/UI

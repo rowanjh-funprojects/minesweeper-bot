@@ -1,7 +1,14 @@
 import random
 import mouse
 import time
+import numpy as np
+import cv2
+from PIL import Image, ImageGrab, ImageDraw
 
+from boardDetector import col_in_img
+from minesweeper import MineSweeperGame
+
+SPEED = 0.05
 
 class playAgent():
     """
@@ -13,9 +20,7 @@ class playAgent():
 
     """
 
-    def __init__(self, game):
-        # Game window info
-        self.game = game
+    def __init__(self):
 
         # Keep track of which cells have been clicked on
         self.moves_made = set()
@@ -28,7 +33,269 @@ class playAgent():
 
         # List of sentences about the game known to be true
         self.knowledge = []
+
+        # Game window and game state
+        self.game_grid = None
+        self.game = None
+        self.lost = False
+        self.won = False
+
+        
+    def find_game_grid(self, showVision=False):
+        """
+        Find the minesweeper game squares from a screenshot.
+
+        :param screen: numpy array of the screen
+        :return: list of squares representing game board [(x,y,w,h), ...]
+        """
+        screen = np.array(ImageGrab.grab()) # for the full screen
+        
+        # Process screenshot to make it easier to analyze
+        gray = cv2.cvtColor(screen,cv2.COLOR_BGR2GRAY)
+        blur = cv2.medianBlur(gray, 3)
+        edges = cv2.Canny(blur,170,255,apertureSize = 5)
+        kernel = np.ones((3,3),np.uint8)
+        edges = cv2.dilate(edges,kernel,iterations = 1)
+        kernel = np.ones((5,5),np.uint8)
+        edges = cv2.erode(edges,kernel,iterations = 1)
+        contours, _ = cv2.findContours(edges,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+        # Find which contours have the same dimensions as the game squares
+        squares = []
+        for i, c in enumerate(contours):
+            x,y,w,h = cv2.boundingRect(c)
+            a = cv2.contourArea(c)
+            if h == 14 and w == 14 and a > 160 and a < 175 :
+                squares.append((x,y,w,h))
+        squares = np.array(squares)
+
+        grid = self.grid_from_squares(squares)
+        
+        # Offset grid position because contours detected the inner corner.
+        grid[:,0] -= 1
+        grid[:,1] -= 1
+        
+        if showVision:
+            # Draw squares on the screen
+            if grid is not None:
+                for (x,y,w,h) in grid:
+                    cv2.rectangle(screen,(x,y),(x+w,y+h),(0,255,0),3)
+                Image.fromarray(screen).show()
+            else:
+                Image.fromarray(edges).show()
+
+        if grid is not None:
+            self.game_grid = grid
+        else:
+            print("Failed to find the game")
     
+    
+    def grid_from_squares(self, squares):
+        """
+        Takes a list of squares extracted from a screengrab. Try to extract a grid.
+        If a grid cannot be found, return None.
+
+        Screening steps include removing outlier squares and checking that enough
+        squares were found. 
+        """
+        if len(squares) == 0:
+            print("Failed: no squares input to grid extractor")
+            return None
+        
+        ### Remove outliers (squares that aren't aligned with other squares)
+        # Get frequency of x and y coordinates of all squares
+        valsX, countX = np.unique(squares[:,0], return_counts=True)
+        valsY, countY = np.unique(squares[:,1], return_counts=True)
+        
+        # Remove any outlier squares that do not align with at least 5 other squares
+        validX = valsX[countX > 5]
+        mask = np.isin(squares[:, 0], validX)
+        squares = squares[mask, :]
+        validY = valsY[countY > 5]
+        mask = np.isin(squares[:, 1], validY)
+        squares = squares[mask, :]
+        
+        ### Check if enough squares were found to make a grid
+        if squares.shape[0] < 50:
+            print("Failed: not enough squares found")
+            return None
+        
+        ### Check if the squares form a single complete grid
+        valsX = np.unique(squares[:,0])
+        valsY = np.unique(squares[:,1])
+
+        # Check if x values are evenly spaced
+        if not all(np.diff(valsX) == np.diff(valsX)[0]):
+            print("Failed: x values are not evenly spaced")
+            return None
+        
+        # Check if y values are evenly spaced
+        if not all(np.diff(valsY) == np.diff(valsY)[0]):
+            print("Failed: y values are not evenly spaced")
+            return None
+        
+        # Check if there is the right number of squares for a complete grid
+        if len(valsX) * len(valsY) != len(squares):
+            print("Failed: not a complete grid")
+            return None
+        
+        # Check if every value in the grid is present
+        expected = set([(x,y) for x in valsX for y in valsY])
+        actual = set([(x,y) for (x,y,w,h) in squares])
+        if expected != actual:
+            print("Failed: not all squares are present")
+            return None
+        
+        # If all checks pass, return the grid
+        return squares
+
+
+    def initialize_game_grid(self):
+        """
+        Register the game grid and create an internal representation of the game
+        """
+        # Game window info
+        self.game = MineSweeperGame.from_grid(self.game_grid)
+
+
+    def play(self, nmoves = None, verbose = False):
+        maxiter = 1000 if nmoves is None else nmoves
+        for i in range(maxiter):
+            # Check values of all unexplored cells
+            # Check win conditions
+            if self.won:
+                print("I won!")
+                break
+            if self.lost:
+                print("I lost :(")
+                break
+            print(self.game)
+
+            # Make a move
+            if i > 5 and verbose:
+                print()
+            move = self.plan_move()
+            self.execute_move(move)
+
+            self.check_cells()
+            if verbose:
+                print(f"Making the move {move}. I think the value there is {self.game.cells[move]}\n")
+    
+
+    def check_cells(self):
+        """ 
+        Check a set of cells for changes. If no cells are specified, check all.
+        Assumes the game window has not moved.
+        Check if won or lost
+        """
+        # If a list of cells is not provided, iterate over all cells. 
+        
+        # Take a screenshot
+        screen = ImageGrab.grab()
+        # If the value of a cell is unknown, check it
+        for cell in self.game.get_unknown_cells():
+            # Extract the right part of the screenshot 
+            contents = screen.crop(self.game.locate_cell(cell))
+            # Check the value of the cell
+            val = self.parse_cell(contents)
+            self.game.update_cell(cell, val)
+
+            if (val is not np.nan) and (val != -1):
+                self.add_knowledge(cell, val)
+        
+        # Check win/lose conditions
+        if -1 in self.game.cells:
+            self.lost = True
+        if (len(self.mines) + len(self.moves_made)) == (self.game.size):
+            self.won = True
+    
+
+    def parse_cell(self, cell_contents):
+        """
+        Get the value of a single minesweeper cell: e.g. unknown, 0,1,2,3,4,5, mine
+
+        input: a cell from the minesweeper game
+        output: the cell value:
+            NaN = unknown
+            -1 = flag?
+            0-8 = number of mines adjacent to cell
+
+        Possible algorithm: 
+        Find screen location of cell
+        Clip screen at that location
+        if central pixels in square are all uniform grey. 
+            if square has a bevel: unknown
+            if square has no bevel: zero
+        else if central pixels are not uniform:
+            if mine, game over
+            if not mine, check what the digit is with CNN
+
+        """
+        cell_center = cell_contents.crop((2,2,self.game.cell_width-2,self.game.cell_height-2))
+        cell_center = np.array(cell_center)
+
+        # Check if the cell is uniform grey (mouse pointer isn't in the screenshot)
+        if len(np.unique(cell_center)) == 1:
+            # Check if the cell has a bevel
+            if len(np.unique(cell_contents)) == 3:
+                # Cell has a bevel, cell is nan
+                return np.nan
+            elif len(np.unique(cell_contents)) == 2:
+                # Cell has no bevel, it is unknown/unclicked.
+                return 0
+        else:
+            # If any cell has a pitch black pixel and a white pixel, assume it is a mine
+            if col_in_img([0,0,0], cell_center):
+                if col_in_img([255,255,255], cell_center):
+                    # Cell is a mine
+                    return -1
+            # Check for digits
+            digit = self.read_digit(cell_center)
+            if digit:
+                return digit
+        # Could not read cell
+        return np.nan
+    
+
+    def read_digit(self, img):
+        """
+        This version uses simple heuristics to determine what the digit is.
+        Ultimately this will be implemented with a CNN.
+
+        Input: a 16x16 image of a digit
+        Output: the digit
+        """
+        # 1 = [0,0,255]
+        # 2 = [0, 128, 0]
+        # 3 = [255,0,0]
+        # 4 = [0,0,128]
+        # 5 = [128,0,0]
+        # 6 = [0,128,128]
+        # 7 = [0,0,0]
+        # 8 = [128,128,128] # unsupported
+
+        img = np.array(img)
+
+        # Check if any pixels are blue
+        if col_in_img(img, [0,0,255]):
+            return 1
+        # Check if any pixels are green
+        if col_in_img(img, [0,128,0]):
+            return 2
+        # Check if any pixels are red
+        if col_in_img(img, [255,0,0]):
+            return 3
+        # Check if any pixels are dark blue
+        if col_in_img(img, [0,0,128]):
+            return 4
+        # Check if any pixels are dark red
+        if col_in_img(img, [128,0,0]):
+            return 5
+        # Check if any pixels are teal
+        if col_in_img(img, [0,128,128]):
+            return 6
+
+
     def add_knowledge(self, cell, count):
         """
         Called when the Minesweeper board tells us, for a given
@@ -168,76 +435,38 @@ class playAgent():
         """
         Decide whether to make a safe move or a random move
         """
-        # If there are no safe moves, make a random move
-        if len(self.safes) == 0:
-            return self.plan_random_move()
-        # If there are safe moves, make one
+        # Make a safe move if possible, or else make a random move
+        unplayed_cells = self.game.get_unknown_cells()
+        unplayed_safes = [cell for cell in unplayed_cells if cell in self.safes]
+
+        if len(unplayed_safes) > 0:
+            # Return a random safe cell
+            return random.choice(unplayed_safes)
         else:
-            return self.plan_safe_move()
+            # Return a random unplayed cell
+            return random.choice(unplayed_cells)
 
-    def plan_safe_move(self):
-        """
-        Returns a safe cell to choose on the Minesweeper board.
-        The move must be known to be safe, and not already a move
-        that has been made.
 
-        This function may use the knowledge in self.mines, self.safes
-        and self.moves_made, but should not modify any of those values.
-        """
-        unplayed_cells = self.get_unplayed_squares()
-        safe_choices = [cell for cell in unplayed_cells if cell in self.safes]
-
-        if len(safe_choices) > 0:
-            # Return the first safe move that has not yet been played, if possible.
-            return random.choice(safe_choices)
-        else:
-            return None
-
-    def plan_random_move(self):
-        """
-        Returns a move to make on the Minesweeper board.
-        Should choose randomly among cells that:
-            1) have not already been chosen, and
-            2) are not known to be mines
-        """
-        # If there are no safe moves, pick any square that has not yet 
-        # been selected, and isn't a known mine
-        unplayed_cells = self.get_unplayed_squares()
-        random_choices = [cell for cell in unplayed_cells if cell not in self.mines]
-        if len(random_choices) == 0:
-            return None
-        else:
-            return random.choice(random_choices)
-
-    def execute_move(self, move, duration = 0.1):
+    def execute_move(self, move, duration = SPEED):
         # convert movement to pixel coordinates
         (x,y) = self.cell_to_pixel(move)
         self.last_move = move
 
         # move mouse to cell and click
         mouse.move(x,y,duration = duration)
-        time.sleep(0.1)
+        # time.sleep(0.1)
         mouse.click()
+
 
     def cell_to_pixel(self, cell):
         """
         Converts a cell (row, col) to pixel coordinates (x, y)
         """
-        x = self.game.xmin + self.game.cell_width * cell[0] + self.game.cell_width/2
-        y = self.game.ymin + self.game.cell_height * cell[1] + self.game.cell_height/2
+        x = self.game.xmin + self.game.cell_width * cell[1] + self.game.cell_width/2
+        y = self.game.ymin + self.game.cell_height * cell[0] + self.game.cell_height/2
         return (x,y)
         
-    def get_unplayed_squares(self):
-        """
-        Returns a list of tuples (row,col) representing cells that have not yet been played
-        """
-        cells = []
-        for i in range(self.game.height):
-            for j in range(self.game.width):
-                if (i,j) not in self.moves_made:
-                    cells.append((i,j))
-        return cells
-    
+
     def get_neighbours(self, cell):
         """
         Get the neighbours of a target cell.
@@ -253,6 +482,43 @@ class playAgent():
                     if (thisi, thisj) not in self.moves_made:
                         neighbours.append((thisi,thisj))
         return neighbours
+    
+
+    def show_beliefs(self):
+        """
+        Show on the screen where it thinks the board is, what the safe cells
+        and mines are
+        """
+
+        screen = ImageGrab.grab()
+        # Get clip of game grid
+        box = self.game.get_game_bbox()
+        gamewindow = screen.crop((box[0][0], box[0][1], box[1][0], box[1][1]))
+        draw = ImageDraw.Draw(gamewindow)
+        # Draw rectangles on grid
+        for cell in self.game.get_all_cells():
+            # Convert cell to pixel coordinates
+            (x,y) = self.cell_to_pixel(cell)
+            # Get corner of cell instead of middle
+            (x,y) = (x - self.game.cell_width/2, y - self.game.cell_height/2)
+            # Convert to relative coordinates in the crop
+            (x,y) = (x - self.game.xmin, y - self.game.ymin)
+            # Colour code cells
+            if cell in self.safes:
+                col = "green"
+            elif cell in self.mines:
+                col = "red"
+            else:
+                col = "blue"
+
+            # Draw rectangles according to colour code
+            draw.rectangle(
+                [(x+1,y+1), (x+self.game.cell_width-1, y+self.game.cell_height-1)],
+                outline = col)            
+        # Show image
+        gamewindow.show()
+
+
     
 
 class Sentence():
@@ -316,3 +582,13 @@ class Sentence():
                 self.count -= 1
         self.cells.difference_update(purge_list)
 
+
+def col_in_img(colour, img):
+    """
+    Check if an image contains any pixel with a specific colour
+
+    Input:
+        colour: a list of 3 integers representing the colour to check for
+        img: a numpy array representing the image to check
+    """
+    return (img == np.array(colour)).all(axis=2).any()

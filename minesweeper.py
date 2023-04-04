@@ -11,6 +11,7 @@ class MineSweeperGame():
         # Game state info
         self.height = nrows
         self.width = ncols
+        self.size = nrows * ncols
         self.cells = np.empty((nrows,ncols))
         self.cells[:] = None
 
@@ -20,8 +21,10 @@ class MineSweeperGame():
         self.cell_height = cell_height
         self.cell_width = cell_width
     
+
     def __getitem__(self, index):
         return self.cells[index]
+
 
     @classmethod
     def from_grid(cls, grid):
@@ -39,18 +42,35 @@ class MineSweeperGame():
         cell_height = (ymax-ymin) / (nrows-1)
         return cls(nrows,ncols,cell_width,cell_height,xmin,ymin)
     
+
     def __str__(self):
         return ("Minesweeper Board\n" + 
-                f'Window location:{self.get_game_bbox()}\n' + 
                 str(self.cells))
     
     def update_cell(self,cell,new_val):
         self.cells[cell] = new_val
+
     
     def get_game_bbox(self):
         return ((self.xmin, self.ymin),
                 (self.xmin + self.width * self.cell_width, 
                  self.ymin + self.height * self.cell_height))
+    
+
+    def get_all_cells(self):
+        """
+        return list of tuples of all cells in the game
+        """
+        return [(r,c) for r in range(self.height) for c in range(self.width)]
+
+
+    def get_unknown_cells(self):
+        """
+        return list of tuples of unknown cells
+        """
+        cells = self.get_all_cells()
+        return [cell for cell in cells if np.isnan(self[cell]).any()]
+
     
     def locate_cell(self, cell, bbox = True):
         """
