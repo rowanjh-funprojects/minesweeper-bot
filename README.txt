@@ -6,8 +6,8 @@ deductions to make inferences about which cells are mines or safes. Then when
 the agent decides which move to make, it uses the mouse to click on the next
 tile. 
 
-Execute probram with 'python run.py'
-The minesweeper window must be visible on the screen. 
+Execute program with 'python run.py'.
+The minesweeper window must be visible on the screen to run.
 
 The agent is programmed to work with "Minesweeper X", a clone of the original game, 
 see http://www.curtisbright.com/msx/
