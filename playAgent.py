@@ -7,7 +7,7 @@ from PIL import Image, ImageGrab, ImageDraw
 
 from minesweeper import MineSweeperGame
 
-SPEED = 0.05
+SPEED = 0.1
 
 class playAgent():
     """
@@ -98,8 +98,7 @@ class playAgent():
         squares were found. 
         """
         if len(squares) == 0:
-            print("Failed: no squares input to grid extractor")
-            return None
+            raise Exception("Failed: game tiles were not detected on the screen")
         
         ### Remove outliers (squares that aren't aligned with other squares)
         # Get frequency of x and y coordinates of all squares
@@ -116,34 +115,26 @@ class playAgent():
         
         ### Check if enough squares were found to make a grid
         if squares.shape[0] < 50:
-            print("Failed: not enough squares found")
-            return None
+            raise Exception("Failed: not enough game tiles found")
         
         ### Check if the squares form a single complete grid
         valsX = np.unique(squares[:,0])
         valsY = np.unique(squares[:,1])
-
-        # Check if x values are evenly spaced
-        if not all(np.diff(valsX) == np.diff(valsX)[0]):
-            print("Failed: x values are not evenly spaced")
-            return None
-        
-        # Check if y values are evenly spaced
-        if not all(np.diff(valsY) == np.diff(valsY)[0]):
-            print("Failed: y values are not evenly spaced")
-            return None
-        
-        # Check if there is the right number of squares for a complete grid
-        if len(valsX) * len(valsY) != len(squares):
-            print("Failed: not a complete grid")
-            return None
         
         # Check if every value in the grid is present
         expected = set([(x,y) for x in valsX for y in valsY])
         actual = set([(x,y) for (x,y,w,h) in squares])
         if expected != actual:
-            print("Failed: not all squares are present")
+            print("Failed: incomplete grid")
             return None
+
+        # Check if x values are evenly spaced
+        if not all(np.diff(valsX) == np.diff(valsX)[0]):
+            raise Exception("Failed: game tiles are not evenly spaced (x)")
+        
+        # Check if y values are evenly spaced
+        if not all(np.diff(valsY) == np.diff(valsY)[0]):
+            raise Exception("Failed: game tiles are not evenly spaced (y)")
         
         # If all checks pass, return the grid
         return squares
@@ -168,11 +159,10 @@ class playAgent():
             if self.lost:
                 print("I lost :(")
                 break
-            print(self.game)
 
             # Make a move
             if i > 5 and verbose:
-                print()
+                print(self.game)
             move = self.plan_move()
             self.execute_move(move)
 
