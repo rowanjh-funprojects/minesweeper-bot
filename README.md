@@ -1,5 +1,5 @@
 # Minesweeper bot
-A gameplay agent that plays minesweeper. It uses computer vision to parse the
+An agent that plays minesweeper. It uses computer vision to parse the
 screen and find the game window. Images are translated to an internal representation
 of the minesweeper game. Then logical deductions are used to make inferences about 
 which cells are mines or safes. The agent controls the mouse to click on tiles in the
