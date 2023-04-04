@@ -5,7 +5,6 @@ import numpy as np
 import cv2
 from PIL import Image, ImageGrab, ImageDraw
 
-from boardDetector import col_in_img
 from minesweeper import MineSweeperGame
 
 SPEED = 0.05
