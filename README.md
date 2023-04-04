@@ -14,6 +14,9 @@ The agent was programmed to work with "Minesweeper X", a clone of the original g
 see http://www.curtisbright.com/msx/
 
 # TODO:
-- Improve logic algorithm (a bit unreliable right now)
+- Improve solving algorithm (a bit buggy right now)
+- Improve guessing
 - Use a CNN instead of simple colour recognition to classify cells (for fun)
 - Allow the game to re-discover the window if the game freezes.
+- Add mine flagging with right click
+- Add command line or GUI interface to bot.
