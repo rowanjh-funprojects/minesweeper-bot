@@ -10,8 +10,8 @@ ai.find_game_grid() # ai.game_grid
 # Initialize game
 ai.initialize_game_grid() # ai.game
 
-ai.play(nmoves = 100)
-ai.show_beliefs()
+ai.play()
+
 # Play the game
 
 # Messagebox/UI

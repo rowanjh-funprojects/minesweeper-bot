@@ -172,7 +172,7 @@ class playAgent():
 
 
     def play(self, nmoves = None, verbose = False):
-        maxiter = 100 if nmoves is None else nmoves
+        maxiter = 2000 if nmoves is None else nmoves
         for i in range(maxiter):
             # Check values of all unexplored cells
             # Check win conditions
@@ -180,8 +180,9 @@ class playAgent():
                 print("I won!")
                 break
             if self.lost:
-                print("I lost :(")
-                break
+                print("I lost >:(\n\n\nTrying again!")
+                self.restart()
+                self.lost = False
 
             # Make a move
             if i > 5 and verbose:
@@ -192,6 +193,34 @@ class playAgent():
             if verbose:
                 print(f"Making the move {move}. I think the value there is {self.game.cells[move]}\n")
     
+
+    def restart(self):
+        """
+        Click the restart button
+        """
+        mouse.move(self.game.reset_pos[0], self.game.reset_pos[1], duration = 1)
+        mouse.double_click()
+        # Wait a little bit for screen to catch up?
+        time.sleep(1)
+        self.lost = False
+        self.game.reset_game()
+
+        self.moves_made = set()
+        self.last_move = (None, None)
+
+        # Keep track of cells known to be safe or mines
+        self.mines = set()
+        self.safes = set()
+        self.unresolved_conclusions = []
+
+        # List of sentences about the game known to be true
+        self.knowledge = []
+
+
+
+
+
+
 
     def check_cells(self, cells = None, screen = None):
         """ 

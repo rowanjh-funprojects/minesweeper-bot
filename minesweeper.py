@@ -5,9 +5,9 @@ import numpy as np
 # Convert the grid to game object class (maybe port into AI brain)
 class MineSweeperGame():
     """ 
-    Representation of minesweeper game window and game state
+    Representation of minesweeper game window and observed game state
     """
-    def __init__(self, nrows, ncols, cell_width, cell_height, xmin, ymin):
+    def __init__(self, nrows, ncols, cell_width, cell_height, xmin, ymin, reset_pos):
         # Game state info
         self.height = nrows
         self.width = ncols
@@ -20,6 +20,7 @@ class MineSweeperGame():
         self.ymin = ymin # top left corner y
         self.cell_height = cell_height
         self.cell_width = cell_width
+        self.reset_pos = reset_pos # restart button position
     
 
     def __getitem__(self, index):
@@ -32,15 +33,17 @@ class MineSweeperGame():
             raise ValueError('Grid is empty')
         xvals = np.unique(grid[:,0])
         yvals = np.unique(grid[:,1])
-        nrows = len(xvals)
-        ncols = len(yvals)
+        nrows = len(yvals)
+        ncols = len(xvals)
         xmin = min(xvals)
         ymin = min(yvals)
         xmax = max(xvals)
         ymax = max(yvals)
         cell_width = (xmax-xmin) / (ncols-1)
         cell_height = (ymax-ymin) / (nrows-1)
-        return cls(nrows,ncols,cell_width,cell_height,xmin,ymin)
+        # restart button position
+        reset_pos = (xmin + (xmax-xmin + cell_width)/2, ymin - 30)
+        return cls(nrows,ncols,cell_width,cell_height,xmin,ymin,reset_pos)
     
 
     def __str__(self):
@@ -72,6 +75,13 @@ class MineSweeperGame():
         return [cell for cell in cells if np.isnan(self[cell]).any()]
 
     
+    def reset_game(self):
+        """
+        Reset game state
+        """
+        self.cells[:] = None
+
+
     def locate_cell(self, cell, bbox = True):
         """
         Get screen pixel coordinates of a given cell. Return a bounding box if 
@@ -82,7 +92,7 @@ class MineSweeperGame():
         cell : tuple
             (row, col) of cell to locate
         bbox : bool, optional
-            Return bounding box of cell if True, by default True
+            Return bounding box of cell if True, else return top-left point
 
         Returns
         -------
