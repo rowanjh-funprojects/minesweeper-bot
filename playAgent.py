@@ -4,8 +4,14 @@ import time
 import numpy as np
 import cv2
 from PIL import Image, ImageGrab, ImageDraw
+from ctypes import windll
 
 from minesweeper import MineSweeperGame
+
+
+# Make program aware of windows DPI scaling
+user32 = windll.user32
+user32.SetProcessDPIAware()
 
 SPEED = 0.1
 
@@ -49,22 +55,39 @@ class playAgent():
         """
         screen = np.array(ImageGrab.grab()) # for the full screen
         
-        # Process screenshot to make it easier to analyze
+        # Process screenshot to make it easier to analyze : pipeline 1
         gray = cv2.cvtColor(screen,cv2.COLOR_BGR2GRAY)
         blur = cv2.medianBlur(gray, 3)
-        edges = cv2.Canny(blur,170,255,apertureSize = 5)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+        close = cv2.morphologyEx(blur, cv2.MORPH_CLOSE, kernel, iterations=2)
+        edges = cv2.Canny(close,170,255,apertureSize = 5)
         kernel = np.ones((3,3),np.uint8)
         edges = cv2.dilate(edges,kernel,iterations = 1)
         kernel = np.ones((5,5),np.uint8)
         edges = cv2.erode(edges,kernel,iterations = 1)
+
+        # pipeline 2
+        # gray = cv2.cvtColor(screen,cv2.COLOR_BGR2GRAY)
+        # blur = cv2.medianBlur(gray, 5)
+        # # Rectangular kernel
+        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+        # close = cv2.morphologyEx(blur, cv2.MORPH_CLOSE, kernel, iterations=2)
+        # edges = cv2.Canny(close,170,255,apertureSize = 5)
+        # kernel = np.ones((3,3),np.uint8)
+        # edges = cv2.dilate(edges,kernel,iterations = 3)
+        # kernel = np.ones((5,5),np.uint8)
+        # edges = cv2.erode(edges,kernel,iterations = 2)
         contours, _ = cv2.findContours(edges,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
         # Find which contours have the same dimensions as the game squares
-        squares = []
+        squares = [] # each square is list of vertices for the detected contour
         for i, c in enumerate(contours):
             x,y,w,h = cv2.boundingRect(c)
+            if h != w:
+                # only keep squares
+                continue
             a = cv2.contourArea(c)
-            if h == 14 and w == 14 and a > 160 and a < 175 :
+            if h > 12 :
                 squares.append((x,y,w,h))
         squares = np.array(squares)
 
@@ -98,7 +121,7 @@ class playAgent():
         squares were found. 
         """
         if len(squares) == 0:
-            raise Exception("Failed: game tiles were not detected on the screen")
+            raise Exception("Failed: zero game tiles were detected on the screen")
         
         ### Remove outliers (squares that aren't aligned with other squares)
         # Get frequency of x and y coordinates of all squares
@@ -149,9 +172,8 @@ class playAgent():
 
 
     def play(self, nmoves = None, verbose = False):
-        maxiter = 1000 if nmoves is None else nmoves
+        maxiter = 100 if nmoves is None else nmoves
         for i in range(maxiter):
-            self.check_cells()
             # Check values of all unexplored cells
             # Check win conditions
             if self.won:
@@ -166,31 +188,48 @@ class playAgent():
                 print(self.game)
             move = self.plan_move()
             self.execute_move(move)
-
+            self.check_cells([move])
             if verbose:
                 print(f"Making the move {move}. I think the value there is {self.game.cells[move]}\n")
     
 
-    def check_cells(self):
+    def check_cells(self, cells = None, screen = None):
         """ 
         Check a set of cells for changes. If no cells are specified, check all.
         Assumes the game window has not moved.
         Check if won or lost
         """
-        # If a list of cells is not provided, iterate over all cells. 
-        
         # Take a screenshot
-        screen = ImageGrab.grab()
-        # If the value of a cell is unknown, check it
-        for cell in self.game.get_unknown_cells():
+        if screen is None:
+            screen = ImageGrab.grab()
+
+        # If a single cell is specified, check only that.
+        if cells:
+            lazy = True
+            if len(cells) > 1:
+                raise Exception("Can only give one check_cells one target")
+        else:
+            # Otherwise check all cells
+            cells = self.game.get_unclicked_cells()
+            lazy = False
+        
+        for cell in cells:
             # Extract the right part of the screenshot 
             contents = screen.crop(self.game.locate_cell(cell))
             # Check the value of the cell
             val = self.parse_cell(contents)
+            # Update the game representation: observed cell values.
             self.game.update_cell(cell, val)
-
-            if (val is not np.nan) and (val != -1):
+            # Update beliefs about uncovered cell based on observations
+            if (val is not np.nan):
                 self.add_knowledge(cell, val)
+                # If a zero is found during lazy check, then many squares were
+                # maybe revealed, so just check the whole grid of unknowns.
+                if val == 0 and lazy:
+                    self.check_cells(screen = screen)
+            else:
+                if lazy:
+                    raise Exception("Clicked cell detected as na, bad vision or click")
         
         # Check win/lose conditions
         if -1 in self.game.cells:
@@ -199,9 +238,9 @@ class playAgent():
             self.won = True
     
 
-    def parse_cell(self, cell_contents):
+    def parse_cell(self, cell_img):
         """
-        Get the value of a single minesweeper cell: e.g. unknown, 0,1,2,3,4,5, mine
+        Get the value from an image of a cell: e.g. unknown, 0,1,2,3,4,5, mine
 
         input: a cell from the minesweeper game
         output: the cell value:
@@ -220,16 +259,16 @@ class playAgent():
             if not mine, check what the digit is with CNN
 
         """
-        cell_center = cell_contents.crop((2,2,self.game.cell_width-2,self.game.cell_height-2))
+        cell_center = cell_img.crop((2,2,self.game.cell_width-2,self.game.cell_height-2))
         cell_center = np.array(cell_center)
 
         # Check if the cell is uniform grey (mouse pointer isn't in the screenshot)
         if len(np.unique(cell_center)) == 1:
             # Check if the cell has a bevel
-            if len(np.unique(cell_contents)) == 3:
+            if len(np.unique(cell_img)) == 3:
                 # Cell has a bevel, cell is nan
                 return np.nan
-            elif len(np.unique(cell_contents)) == 2:
+            elif len(np.unique(cell_img)) == 2:
                 # Cell has no bevel, it is unknown/unclicked.
                 return 0
         else:
@@ -300,6 +339,9 @@ class playAgent():
             5) add any new sentences to the AI's knowledge base
                if they can be inferred from existing knowledge
         """
+        if count == -1:
+            # Forget it if it's a mine, gg.
+            return
         # Add this cell to moves made
         self.moves_made.add(cell)
         # Note that this was a safe cell
@@ -425,7 +467,7 @@ class playAgent():
         Decide whether to make a safe move or a random move
         """
         # Make a safe move if possible, or else make a random move
-        unplayed_cells = self.game.get_unknown_cells()
+        unplayed_cells = self.game.get_unclicked_cells()
         unplayed_safes = [cell for cell in unplayed_cells if cell in self.safes]
 
         if len(unplayed_safes) > 0:
@@ -433,7 +475,6 @@ class playAgent():
             return random.choice(unplayed_safes)
         else:
             # Guess a cell
-
             return self.guess_move()
 
 
@@ -442,7 +483,7 @@ class playAgent():
         Make a random move
         """
         # Make a random move
-        unplayed_cells = self.game.get_unknown_cells()
+        unplayed_cells = self.game.get_unclicked_cells()
         cells = [c for c in unplayed_cells if c not in self.mines]
         return random.choice(cells)
 
@@ -454,8 +495,10 @@ class playAgent():
 
         # move mouse to cell and click
         mouse.move(x,y,duration = duration)
-        # time.sleep(0.1)
         mouse.click()
+        # Wait a little bit for screen to catch up?
+        time.sleep(0.05)
+
 
 
     def cell_to_pixel(self, cell):
@@ -513,7 +556,7 @@ class playAgent():
 
             # Draw rectangles according to colour code
             draw.rectangle(
-                [(x+1,y+1), (x+self.game.cell_width-1, y+self.game.cell_height-1)],
+                [(x+2,y+2), (x+self.game.cell_width-2, y+self.game.cell_height-2)],
                 outline = col)            
         # Show image
         gamewindow.show()

@@ -64,9 +64,9 @@ class MineSweeperGame():
         return [(r,c) for r in range(self.height) for c in range(self.width)]
 
 
-    def get_unknown_cells(self):
+    def get_unclicked_cells(self):
         """
-        return list of tuples of unknown cells
+        return list of tuples of unclicked cells
         """
         cells = self.get_all_cells()
         return [cell for cell in cells if np.isnan(self[cell]).any()]
