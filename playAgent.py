@@ -151,6 +151,7 @@ class playAgent():
     def play(self, nmoves = None, verbose = False):
         maxiter = 1000 if nmoves is None else nmoves
         for i in range(maxiter):
+            self.check_cells()
             # Check values of all unexplored cells
             # Check win conditions
             if self.won:
@@ -166,7 +167,6 @@ class playAgent():
             move = self.plan_move()
             self.execute_move(move)
 
-            self.check_cells()
             if verbose:
                 print(f"Making the move {move}. I think the value there is {self.game.cells[move]}\n")
     
@@ -432,8 +432,19 @@ class playAgent():
             # Return a random safe cell
             return random.choice(unplayed_safes)
         else:
-            # Return a random unplayed cell
-            return random.choice(unplayed_cells)
+            # Guess a cell
+
+            return self.guess_move()
+
+
+    def guess_move(self):
+        """
+        Make a random move
+        """
+        # Make a random move
+        unplayed_cells = self.game.get_unknown_cells()
+        cells = [c for c in unplayed_cells if c not in self.mines]
+        return random.choice(cells)
 
 
     def execute_move(self, move, duration = SPEED):
