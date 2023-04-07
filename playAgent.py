@@ -4,14 +4,14 @@ import time
 import numpy as np
 import cv2
 from PIL import Image, ImageGrab, ImageDraw
-from ctypes import windll
 
 from minesweeper import MineSweeperGame
 
 
 # Make program aware of windows DPI scaling
-user32 = windll.user32
-user32.SetProcessDPIAware()
+import ctypes
+PROCESS_PER_MONITOR_DPI_AWARE = 2
+ctypes.windll.shcore.SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)
 
 SPEED = 0.1
 
@@ -55,7 +55,7 @@ class playAgent():
         """
         screen = np.array(ImageGrab.grab()) # for the full screen
         
-        # Process screenshot to make it easier to analyze : pipeline 1
+        # Process screenshot to extract contours : pipeline 1 (unscaled window)
         gray = cv2.cvtColor(screen,cv2.COLOR_BGR2GRAY)
         blur = cv2.medianBlur(gray, 3)
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
@@ -66,7 +66,7 @@ class playAgent():
         kernel = np.ones((5,5),np.uint8)
         edges = cv2.erode(edges,kernel,iterations = 1)
 
-        # pipeline 2
+        # # pipeline 2 (for upscaled game window)
         # gray = cv2.cvtColor(screen,cv2.COLOR_BGR2GRAY)
         # blur = cv2.medianBlur(gray, 5)
         # # Rectangular kernel
@@ -77,6 +77,7 @@ class playAgent():
         # edges = cv2.dilate(edges,kernel,iterations = 3)
         # kernel = np.ones((5,5),np.uint8)
         # edges = cv2.erode(edges,kernel,iterations = 2)
+        
         contours, _ = cv2.findContours(edges,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
         # Find which contours have the same dimensions as the game squares
@@ -93,9 +94,10 @@ class playAgent():
 
         grid = self.grid_from_squares(squares)
         
-        # Offset grid position because contours detected the inner corner.
-        grid[:,0] -= 1
-        grid[:,1] -= 1
+        # # Offset grid position because contours detect the inner corner.
+        # Set values fail when window is rescaled.
+        # grid[:,0] -= 1
+        # grid[:,1] -= 1
         
         if showVision:
             # Draw squares on the screen
@@ -169,6 +171,7 @@ class playAgent():
         """
         # Game window info
         self.game = MineSweeperGame.from_grid(self.game_grid)
+        
 
 
     def play(self, nmoves = None, verbose = False):
@@ -180,7 +183,7 @@ class playAgent():
                 print("I won!")
                 break
             if self.lost:
-                print("I lost >:(\n\n\nTrying again!")
+                print("I lost >:( Trying again! \n\n\n")
                 self.restart()
                 self.lost = False
 
@@ -215,11 +218,6 @@ class playAgent():
 
         # List of sentences about the game known to be true
         self.knowledge = []
-
-
-
-
-
 
 
     def check_cells(self, cells = None, screen = None):
@@ -288,16 +286,19 @@ class playAgent():
             if not mine, check what the digit is with CNN
 
         """
-        cell_center = cell_img.crop((2,2,self.game.cell_width-2,self.game.cell_height-2))
+        buff = self.game.cell_width // 8 # accounts for scaled game window
+        cell_center = cell_img.crop((buff,buff,self.game.cell_width-buff,self.game.cell_height-buff))
         cell_center = np.array(cell_center)
 
         # Check if the cell is uniform grey (mouse pointer isn't in the screenshot)
-        if len(np.unique(cell_center)) == 1:
+        # if R==B==G, cell is fully greyscale. Don't allow black pixels (mine)
+        r,g,b = cell_center[:,:,0], cell_center[:,:,1], cell_center[:,:,2]
+        if (r == g).all() and (r == b).all() and not 0 in r:
             # Check if the cell has a bevel
-            if len(np.unique(cell_img)) == 3:
+            if col_in_img([255, 255, 255], np.array(cell_img)):
                 # Cell has a bevel, cell is nan
                 return np.nan
-            elif len(np.unique(cell_img)) == 2:
+            else:
                 # Cell has no bevel, it is unknown/unclicked.
                 return 0
         else:
@@ -500,8 +501,8 @@ class playAgent():
         unplayed_safes = [cell for cell in unplayed_cells if cell in self.safes]
 
         if len(unplayed_safes) > 0:
-            # Return a random safe cell
-            return random.choice(unplayed_safes)
+            # Return a safe cell
+            return unplayed_safes[0]
         else:
             # Guess a cell
             return self.guess_move()
@@ -526,7 +527,7 @@ class playAgent():
         mouse.move(x,y,duration = duration)
         mouse.click()
         # Wait a little bit for screen to catch up?
-        time.sleep(0.05)
+        time.sleep(0.1)
 
 
 

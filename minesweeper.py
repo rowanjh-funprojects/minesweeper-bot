@@ -41,8 +41,15 @@ class MineSweeperGame():
         ymax = max(yvals)
         cell_width = (xmax-xmin) / (ncols-1)
         cell_height = (ymax-ymin) / (nrows-1)
+                
+        # Offset grid position because contours detect the inner corner.
+        xmin -= cell_width // 16
+        xmax -= cell_width // 16
+        ymin -= cell_height // 16
+        ymax -= cell_height // 16
+
         # restart button position
-        reset_pos = (xmin + (xmax-xmin + cell_width)/2, ymin - 30)
+        reset_pos = (xmin + (xmax-xmin + cell_width)/2, ymin - cell_width*2)
         return cls(nrows,ncols,cell_width,cell_height,xmin,ymin,reset_pos)
     
 
