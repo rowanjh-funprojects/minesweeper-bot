@@ -9,9 +9,11 @@ from minesweeper import MineSweeperGame
 
 
 # Make program aware of windows DPI scaling
+import platform
 import ctypes
-PROCESS_PER_MONITOR_DPI_AWARE = 2
-ctypes.windll.shcore.SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)
+if platform.system() == 'Windows':
+    PROCESS_PER_MONITOR_DPI_AWARE = 2
+    ctypes.windll.shcore.SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)
 
 SPEED = 0.1
 
@@ -77,7 +79,7 @@ class playAgent():
         # edges = cv2.dilate(edges,kernel,iterations = 3)
         # kernel = np.ones((5,5),np.uint8)
         # edges = cv2.erode(edges,kernel,iterations = 2)
-        
+
         contours, _ = cv2.findContours(edges,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
         # Find which contours have the same dimensions as the game squares
