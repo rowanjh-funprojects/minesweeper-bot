@@ -35,6 +35,7 @@ class playAgent():
 
         # Keep track of cells known to be safe or mines
         self.mines = set()
+        self.flags = set()
         self.safes = set()
         self.unresolved_conclusions = []
 
@@ -274,7 +275,8 @@ class playAgent():
         input: a cell from the minesweeper game
         output: the cell value:
             NaN = unknown
-            -1 = flag?
+            -1 = mine
+            -2 = flag
             0-8 = number of mines adjacent to cell
 
         Possible algorithm: 
@@ -293,6 +295,7 @@ class playAgent():
         cell_center = np.array(cell_center)
 
         # Check if the cell is uniform grey (mouse pointer isn't in the screenshot)
+
         # if R==B==G, cell is fully greyscale. Don't allow black pixels (mine)
         r,g,b = cell_center[:,:,0], cell_center[:,:,1], cell_center[:,:,2]
         if (r == g).all() and (r == b).all() and not 0 in r:
@@ -304,11 +307,18 @@ class playAgent():
                 # Cell has no bevel, it is unknown/unclicked.
                 return 0
         else:
-            # If any cell has a pitch black pixel and a white pixel, assume it is a mine
+            # If any cell has a pitch black pixel and a white pixel, it must be
+            # a mine
             if col_in_img([0,0,0], cell_center):
                 if col_in_img([255,255,255], cell_center):
                     # Cell is a mine
                     return -1
+            # If the cell has a black pixel and a red pixel, and it is not 
+            # mine, then it must be a flag 
+            if col_in_img([0,0,0], cell_center):
+                if col_in_img([255,0,0], cell_center):
+                    # Cell is a flag
+                    return -2
             # Check for digits
             digit = self.read_digit(cell_center)
             if digit:
@@ -371,8 +381,9 @@ class playAgent():
             5) add any new sentences to the AI's knowledge base
                if they can be inferred from existing knowledge
         """
-        if count == -1:
-            # Forget it if it's a mine, gg.
+        if count == -1 or count == -2:
+            # If the move was a mine, then the game is over. If the move was a
+            # flag, no new knowledge has been gained.
             return
         # Add this cell to moves made
         self.moves_made.add(cell)
@@ -498,6 +509,11 @@ class playAgent():
         """
         Decide whether to make a safe move or a random move
         """
+        # If there are any known mines that have not been flagged yet, flag them
+        unflagged_mines = [m for m in self.mines if m not in self.flags]
+        if unflagged_mines:
+            self.flag_mine(unflagged_mines[0])
+
         # Make a safe move if possible, or else make a random move
         unplayed_cells = self.game.get_unclicked_cells()
         unplayed_safes = [cell for cell in unplayed_cells if cell in self.safes]
@@ -510,6 +526,13 @@ class playAgent():
             return self.guess_move()
 
 
+    def flag_mine(self, cell):
+        """
+        Flag a mine
+        """
+        self.flags.add(cell)
+        self.execute_move(cell, type = 'right')
+
     def guess_move(self):
         """
         Make a random move
@@ -520,17 +543,16 @@ class playAgent():
         return random.choice(cells)
 
 
-    def execute_move(self, move, duration = SPEED):
+    def execute_move(self, move, type = 'left', duration = SPEED):
         # convert movement to pixel coordinates
         (x,y) = self.cell_to_pixel(move)
         self.last_move = move
 
         # move mouse to cell and click
         mouse.move(x,y,duration = duration)
-        mouse.click()
+        mouse.click(button = type)
         # Wait a little bit for screen to catch up?
         time.sleep(0.1)
-
 
 
     def cell_to_pixel(self, cell):

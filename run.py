@@ -1,13 +1,15 @@
 import os
+import sys
 import subprocess
 import time
 
 from playAgent import playAgent
 
-# Open minesweeper X
-wd = os.getcwd()
-subprocess.Popen(os.path.join(wd, 'Minesweeper X.exe'))
-time.sleep(1)
+if '-autolaunch' in sys.argv:
+    # Launch minesweeper X
+    wd = os.getcwd()
+    subprocess.Popen(os.path.join(wd, 'Minesweeper X.exe'))
+    time.sleep(1)
 
 ### Create the AI 
 ai = playAgent()
