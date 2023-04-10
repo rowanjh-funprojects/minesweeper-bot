@@ -1,5 +1,6 @@
 import random
 import mouse
+import keyboard
 import time
 import numpy as np
 import cv2
@@ -178,15 +179,41 @@ class playAgent():
 
 
     def play(self, nmoves = None, verbose = False):
+        """
+        Play the game until it is won or lost.
+
+        Parameters
+        ----------
+        nmoves : int, optional
+            The maximum number of moves to make. If None, play until the game is won or lost.
+        verbose : bool, optional
+            If True, print the game state after each move.
+
+        Returns
+        -------
+        None.
+        """
         maxiter = 2000 if nmoves is None else nmoves
+        # Startup message
+        print("Lets play! Hold q to quit, press p to pause.")
         for i in range(maxiter):
+            # Quit if s is pressed
+            if keyboard.is_pressed('q') or keyboard.is_pressed('esc'):
+                print("Quitting")
+                break
+            # Pause if p is pressed
+            if keyboard.is_pressed('p'):
+                print("Paused. Press p again to unpause")
+                time.sleep(1)
+                keyboard.wait('p')
+                print("unpaused")
             # Check values of all unexplored cells
             # Check win conditions
             if self.won:
                 print("I won!")
                 break
             if self.lost:
-                print("I lost >:( Trying again! \n\n\n")
+                print("I lost >:( Trying again!")
                 self.restart()
                 self.lost = False
 
