@@ -20,3 +20,4 @@ see http://www.curtisbright.com/msx/
 - Allow the game to re-discover the window if the game freezes.
 - Add mine flagging with right click
 - Add command line or GUI interface to bot.
+- Improve grid detection if game window is rescaled
