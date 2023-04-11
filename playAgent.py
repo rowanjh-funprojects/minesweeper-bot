@@ -4,6 +4,9 @@ import keyboard
 import time
 import numpy as np
 import cv2
+import os
+import subprocess
+
 from PIL import Image, ImageGrab, ImageDraw
 
 from minesweeper import MineSweeperGame
@@ -48,6 +51,49 @@ class playAgent():
         self.game = None
         self.lost = False
         self.won = False
+
+
+    def activate(self):
+        """
+        Activate the AI to play the game.
+        """
+        print("Hello! I'm a Minesweeper AI")
+        while True:
+            print("Do you want me to launch the game for you? (y/n) ", end = "")
+            response = input()
+            if response == 'y':
+                # Launch minesweeper X
+                wd = os.getcwd()
+                subprocess.Popen(os.path.join(wd, 'Minesweeper X.exe'))
+                time.sleep(1)
+                break
+            elif response == 'n':
+                break
+
+        print("\nPlease make sure the full minesweeper game window is visible ")
+        print("The game should be fresh (no cells clicked)")
+
+        while True:
+            print("\nAre you ready? (y/n) ", end = "")
+            response = input()
+
+            if response == 'y':
+                try:
+                    self.find_game_grid()
+                    self.initialize_game_grid()
+                except:
+                    print("I failed to find the window, please try again.")
+                    continue
+                self.play()
+                print("Do you want to try again?(y/n) ", end = "")
+                if input() == 'y':
+                    self.restart()
+                    continue
+                else: 
+                    break
+            
+        print("Goodbye!")
+        return
 
         
     def find_game_grid(self, showVision=False):
@@ -195,11 +241,11 @@ class playAgent():
         """
         maxiter = 2000 if nmoves is None else nmoves
         # Startup message
-        print("Lets play! Hold q to quit, press p to pause.")
+        print("Lets play! Hold s to stop, p to pause, or r to restart")
         for i in range(maxiter):
             # Quit if s is pressed
-            if keyboard.is_pressed('q') or keyboard.is_pressed('esc'):
-                print("Quitting")
+            if keyboard.is_pressed('s') or keyboard.is_pressed('esc'):
+                print("Stopping play")
                 break
             # Pause if p is pressed
             if keyboard.is_pressed('p'):
@@ -207,22 +253,28 @@ class playAgent():
                 time.sleep(1)
                 keyboard.wait('p')
                 print("unpaused")
+            if keyboard.is_pressed('r'):
+                print("Restarting")
+                self.restart()
             # Check values of all unexplored cells
             # Check win conditions
             if self.won:
                 print("I won!")
                 break
             if self.lost:
-                print("I lost >:( Trying again!")
-                self.restart()
-                self.lost = False
+                print("I lost >:(")
+                break
 
             # Make a move
             if i > 5 and verbose:
                 print(self.game)
             move = self.plan_move()
             self.execute_move(move)
-            self.check_cells([move])
+            try:
+                self.check_cells([move])
+            except:
+                print("Something went wrong checking cells. I'm quitting.")
+                break
             if verbose:
                 print(f"Making the move {move}. I think the value there is {self.game.cells[move]}\n")
     
