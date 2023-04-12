@@ -11,12 +11,11 @@ To run the bot:
 3. Ensure minesweeper window is visible on screen.
 4. Execute program with the command `python run.py`.
 
-The agent was programmed to work with "Minesweeper X", a clone of the original game, 
+The agent was programmed to work in windows with "Minesweeper X", a clone of the original game, 
 see http://www.curtisbright.com/msx/
 
 # TODO:
-- Improve guessing
+- Improve guessing logic (currently purely random)
 - Use a CNN instead of simple colour recognition to classify cells (for fun)
-- Allow the game to re-discover the window if the game freezes.
-- Add command line or GUI interface to bot.
+- Allow the game to discover a partially completed game.
 - Improve grid detection if game window is rescaled
